@@ -17,6 +17,7 @@ inputs:
 outputs:
   list:
     description: 'Newline-delimited tag list'
+    value: ${{ steps.t.outputs.list }}
 runs:
   using: composite
   steps:
@@ -33,4 +34,3 @@ runs:
           LIST="$LIST\n${{ inputs['image-name'] }}:api-stable"
         fi
         printf 'list<<EOF\n%s\nEOF\n' "$LIST" >> "$GITHUB_OUTPUT"
-
