@@ -18,6 +18,7 @@ runs:
       run: |
         set -euo pipefail
         ALL=$(npm view @actual-app/api versions --json)
+        export ALL
         node -e '
           const majorsWindow = parseInt(process.env.WINDOW, 10);
           const all = JSON.parse(process.env.ALL || "[]");
@@ -30,8 +31,7 @@ runs:
           const result = Array.from(byMajor.values()).sort((a,b)=> a.p[0]-b.p[0] || a.p[1]-b.p[1] || a.p[2]-b.p[2]).map(x=>x.v);
           process.stdout.write(`matrix=${JSON.stringify(result)}\n`);
           process.stdout.write(`max_major=${majors[0]||''}\n`);
-        ' > $GITHUB_OUTPUT
+        ' >> $GITHUB_OUTPUT
       env:
         WINDOW: ${{ inputs.majors-window }}
         ALL: ${{ env.ALL }}
-
