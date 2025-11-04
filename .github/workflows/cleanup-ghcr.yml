@@ -1,0 +1,101 @@
+name: Reusable GHCR Cleanup
+
+on:
+  workflow_call:
+    inputs:
+      owner:
+        description: 'Repo owner/org (e.g., rjlee)'
+        required: true
+        type: string
+      package:
+        description: 'Container package name (repo name)'
+        required: true
+        type: string
+      dry-run:
+        description: 'Only print, do not delete'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      GH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate gh
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${{ secrets.GH_TOKEN || github.token }}"
+          echo "$TOKEN" | gh auth login --with-token
+
+      - name: Determine package API base path
+        id: base
+        shell: bash
+        env:
+          OWNER: ${{ inputs.owner }}
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          # Try orgs path first
+          if gh api -H "Accept: application/vnd.github+json" \
+               "/orgs/${OWNER}/packages/container/${PACKAGE}/versions?per_page=1&page=1" >/dev/null 2>&1; then
+            echo "path=/orgs/${OWNER}/packages/container/${PACKAGE}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Fallback to users path
+          if gh api -H "Accept: application/vnd.github+json" \
+               "/users/${OWNER}/packages/container/${PACKAGE}/versions?per_page=1&page=1" >/dev/null 2>&1; then
+            echo "path=/users/${OWNER}/packages/container/${PACKAGE}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "Failed to resolve package path for ${OWNER}/${PACKAGE}" >&2
+          exit 1
+
+      - name: Delete non-conforming versions
+        shell: bash
+        env:
+          BASE: ${{ steps.base.outputs.path }}
+          DRY: ${{ inputs.dry-run }}
+        run: |
+          set -euo pipefail
+          page=1
+          deleted=0
+          kept=0
+          while true; do
+            data=$(gh api -H "Accept: application/vnd.github+json" \
+              "${BASE}/versions?per_page=100&page=${page}" 2>/dev/null || echo '[]')
+            count=$(jq 'length' <<<"$data")
+            if [ "$count" -eq 0 ]; then break; fi
+            for row in $(jq -c '.[]' <<<"$data"); do
+              id=$(jq -r '.id' <<<"$row")
+              # Collect tags (may be null)
+              tags=$(jq -r '.metadata.container.tags // [] | .[]' <<<"$row" || true)
+              keep=false
+              while IFS= read -r t; do
+                if [[ "$t" =~ ^api-[0-9]+$ || "$t" == "latest" ]]; then keep=true; fi
+              done <<<"$tags"
+              if $keep; then
+                kept=$((kept+1))
+                continue
+              fi
+              echo "Candidate delete: version=$id tags=["$(paste -sd, <<<"$tags")"]"
+              if [ "$DRY" != "true" ]; then
+                gh api --method DELETE -H "Accept: application/vnd.github+json" \
+                  "${BASE}/versions/${id}" || true
+                deleted=$((deleted+1))
+              fi
+            done
+            page=$((page+1))
+          done
+          echo "Summary: kept=$kept deleted=$deleted dry-run=$DRY"
+
