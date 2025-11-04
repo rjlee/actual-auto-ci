@@ -95,7 +95,11 @@ jobs:
           image-name: ${{ inputs['image-name'] }}
           ver: ${{ matrix.ver }}
           max-major: ${{ needs.matrix.outputs.max_major }}
-          include-stable: ${{ inputs['include-stable'] }}
+          include-major: true
+          include-minor: false
+          include-patch: false
+          include-stable: false
+          include-latest: true
 
       - name: Build and push (api matrix)
         uses: docker/build-push-action@v6

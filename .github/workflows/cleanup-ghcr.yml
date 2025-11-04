@@ -71,6 +71,7 @@ jobs:
           page=1
           deleted=0
           kept=0
+          kept_tags_file=$(mktemp)
           while true; do
             data=$(gh api -H "Accept: application/vnd.github+json" \
               "${BASE}/versions?per_page=100&page=${page}" 2>/dev/null || echo '[]')
@@ -81,6 +82,8 @@ jobs:
               # Determine keep vs delete using jq
               if jq -e '.metadata.container.tags // [] | any(. == "latest" or test("^api-[0-9]+$"))' <<<"$row" >/dev/null; then
                 kept=$((kept+1))
+                # Accumulate all tags from kept versions so we can show remaining tag set
+                jq -r '.metadata.container.tags // [] | .[]' <<<"$row" >> "$kept_tags_file" || true
               else
                 tags_csv=$(jq -r '.metadata.container.tags // [] | join(",")' <<<"$row")
                 echo "Candidate delete: version=$id tags=[$tags_csv]"
@@ -94,3 +97,9 @@ jobs:
             page=$((page+1))
           done
           echo "Summary: kept=$kept deleted=$deleted dry-run=$DRY"
+          if [ -s "$kept_tags_file" ]; then
+            echo "Remaining tags (from kept versions):"
+            sort -u "$kept_tags_file" | sed 's/^/ - /'
+          else
+            echo "Remaining tags: (none found)"
+          fi

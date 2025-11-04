@@ -10,8 +10,24 @@ inputs:
   max-major:
     description: 'Highest major across matrix builds'
     required: true
+  include-major:
+    description: 'Include api-<major> tag'
+    required: false
+    default: 'true'
+  include-minor:
+    description: 'Include api-<minor> tag'
+    required: false
+    default: 'false'
+  include-patch:
+    description: 'Include api-<patch> tag'
+    required: false
+    default: 'false'
   include-stable:
     description: 'Include api-stable for highest major'
+    required: false
+    default: 'false'
+  include-latest:
+    description: 'Include latest for highest major'
     required: false
     default: 'true'
 outputs:
@@ -29,8 +45,20 @@ runs:
         V='${{ inputs.ver }}'
         MINOR=${V%.*}
         MAJOR=${V%%.*}
-        LIST="${{ inputs['image-name'] }}:api-${V},${{ inputs['image-name'] }}:api-${MINOR},${{ inputs['image-name'] }}:api-${MAJOR}"
+        LIST=""
+        if [ "${{ inputs['include-patch'] }}" = "true" ]; then
+          LIST="${{ inputs['image-name'] }}:api-${V}"
+        fi
+        if [ "${{ inputs['include-minor'] }}" = "true" ]; then
+          LIST="${LIST:+$LIST,}${{ inputs['image-name'] }}:api-${MINOR}"
+        fi
+        if [ "${{ inputs['include-major'] }}" = "true" ]; then
+          LIST="${LIST:+$LIST,}${{ inputs['image-name'] }}:api-${MAJOR}"
+        fi
         if [ "${{ inputs['include-stable'] }}" = "true" ] && [ "$MAJOR" = "${{ inputs['max-major'] }}" ]; then
           LIST="$LIST,${{ inputs['image-name'] }}:api-stable"
+        fi
+        if [ "${{ inputs['include-latest'] }}" = "true" ] && [ "$MAJOR" = "${{ inputs['max-major'] }}" ]; then
+          LIST="$LIST,${{ inputs['image-name'] }}:latest"
         fi
         echo "list=$LIST" >> "$GITHUB_OUTPUT"
