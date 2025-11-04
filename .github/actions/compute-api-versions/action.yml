@@ -21,13 +21,17 @@ runs:
         set -euo pipefail
         ALL=$(npm view @actual-app/api versions --json)
         JSON=$(echo "$ALL" | jq -c --argjson n "${{ inputs.majors-window }}" '
-          [ .[] | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
-            | { v: ., p: (split(".")|map(tonumber)), major: ((split(".")|map(tonumber))[0]) } ]
-          as $parsed
+          # Build parsed list with numeric parts and major
+          [ .[]
+            | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+            | { v: ., p: (split(".")|map(tonumber)), major: ((split(".")|.[0]|tonumber)) } ] as $parsed
+          # Determine latest N majors (by value, descending)
           | ($parsed | map(.major) | unique | sort | reverse | .[:$n]) as $majors
+          # Keep only entries from selected majors
           | ($parsed | map(select(.major as $m | $majors | index($m)))) as $sel
-          | ( [ ($sel | group_by(.major)[] | max_by(.p)) | .[] ] | sort_by(.p) | map(.v) ) as $versions
-          | { matrix: $versions, max_major: ($majors[0] // "") }
+          # For each major, pick the latest patch (by p), then sort ascending by p and emit versions
+          | { matrix: ($sel | sort_by(.major, .p) | group_by(.major) | map(.[-1]) | sort_by(.p) | map(.v)),
+              max_major: ($majors[0] // "") }
         ')
         echo "matrix=$(echo "$JSON" | jq -c .matrix)" >> $GITHUB_OUTPUT
         echo "max_major=$(echo "$JSON" | jq -r .max_major)" >> $GITHUB_OUTPUT
