@@ -52,14 +52,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node
+        uses: rjlee/actual-auto-ci/.github/actions/setup-node@v1
         with:
           node-version: '20'
           package-manager: npm
 
       - name: Compute API versions
         id: versions
-        uses: ./.github/actions/compute-api-versions
+        uses: rjlee/actual-auto-ci/.github/actions/compute-api-versions@v1
         with:
           majors-window: ${{ inputs['majors-window'] }}
 
@@ -90,7 +90,7 @@ jobs:
 
       - name: Compose tags
         id: taglist
-        uses: ./.github/actions/docker-tags
+        uses: rjlee/actual-auto-ci/.github/actions/docker-tags@v1
         with:
           image-name: ${{ inputs['image-name'] }}
           ver: ${{ matrix.ver }}
@@ -112,4 +112,3 @@ jobs:
             APP_VERSION=${{ steps.appver.outputs.version }}
             ${{ inputs['build-args-extra'] }}
           tags: ${{ steps.taglist.outputs.list }}
-

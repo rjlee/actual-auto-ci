@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node
+        uses: rjlee/actual-auto-ci/.github/actions/setup-node@v1
         with:
           node-version: ${{ inputs['node-version'] }}
           package-manager: ${{ inputs['package-manager'] }}
@@ -104,4 +104,3 @@ jobs:
           else
             echo "No tests found; skipping"
           fi
-

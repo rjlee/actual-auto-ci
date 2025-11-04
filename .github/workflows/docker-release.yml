@@ -1,0 +1,95 @@
+name: Reusable Docker Release
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: 'Full image name (e.g., ghcr.io/owner/repo)'
+        required: true
+        type: string
+      platforms:
+        description: 'Build platforms'
+        required: false
+        type: string
+        default: 'linux/amd64,linux/arm64'
+      dockerfile:
+        description: 'Dockerfile path'
+        required: false
+        type: string
+        default: 'Dockerfile'
+      context:
+        description: 'Build context'
+        required: false
+        type: string
+        default: '.'
+      build-args-extra:
+        description: 'Additional build args (newline separated key=value)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Determine latest stable @actual-app/api version
+        id: apiver
+        shell: bash
+        run: |
+          set -euo pipefail
+          ALL=$(npm view @actual-app/api versions --json)
+          LATEST=$(node -e '
+            const all = JSON.parse(process.argv[1]||"[]");
+            const stable = all.filter(v => /^\d+\.\d+\.\d+$/.test(v));
+            // Latest stable is the greatest semver
+            const toNum = v => v.split('.').map(Number);
+            stable.sort((a,b)=>{const A=toNum(a),B=toNum(b);return (A[0]-B[0])||(A[1]-B[1])||(A[2]-B[2]);});
+            process.stdout.write(stable[stable.length-1]||'');
+          ' "$ALL")
+          if [ -z "$LATEST" ]; then echo "Failed to resolve @actual-app/api latest stable" >&2; exit 1; fi
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+
+      - name: Read app version
+        id: appver
+        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push (release tags)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: true
+          platforms: ${{ inputs.platforms }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            ACTUAL_API_VERSION=${{ steps.apiver.outputs.version }}
+            GIT_SHA=${{ github.sha }}
+            APP_VERSION=${{ steps.appver.outputs.version }}
+            ${{ inputs['build-args-extra'] }}
+          tags: |
+            ${{ inputs['image-name'] }}:${{ steps.appver.outputs.version }}
+            ${{ inputs['image-name'] }}:latest
+
