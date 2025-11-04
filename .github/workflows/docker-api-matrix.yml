@@ -41,12 +41,17 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.versions.outputs.matrix }}
       max_major: ${{ steps.versions.outputs.max_major }}
+      cache_hit: ${{ steps.cache.outputs.cache-hit }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,9 +68,27 @@ jobs:
         with:
           majors-window: ${{ inputs['majors-window'] }}
 
+      - name: Compute matrix cache key
+        id: key
+        shell: bash
+        run: |
+          set -euo pipefail
+          MATRIX='${{ steps.versions.outputs.matrix }}'
+          HASH=$(echo -n "$MATRIX" | sha256sum | cut -d' ' -f1)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
+      - name: Check matrix cache (used to skip cron builds)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .api-matrix-cache
+          key: api-matrix-${{ steps.key.outputs.hash }}
+
   build:
     needs: matrix
     runs-on: ubuntu-latest
+    # On scheduled runs, skip if matrix unchanged (cache hit)
+    if: ${{ github.event_name != 'schedule' || needs.matrix.outputs.cache_hit != 'true' }}
     strategy:
       fail-fast: false
       matrix:
