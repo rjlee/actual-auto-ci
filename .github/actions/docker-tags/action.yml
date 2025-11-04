@@ -1,0 +1,36 @@
+name: Compose Docker tag list
+description: 'Compose tags for a given API version (patch/minor/major and optional api-stable)'
+inputs:
+  image-name:
+    description: 'Base image name (e.g., ghcr.io/owner/repo)'
+    required: true
+  ver:
+    description: 'API version (patch)'
+    required: true
+  max-major:
+    description: 'Highest major across matrix builds'
+    required: true
+  include-stable:
+    description: 'Include api-stable for highest major'
+    required: false
+    default: 'true'
+outputs:
+  list:
+    description: 'Newline-delimited tag list'
+runs:
+  using: composite
+  steps:
+    - name: Build tags
+      id: t
+      shell: bash
+      run: |
+        set -euo pipefail
+        V='${{ inputs.ver }}'
+        MINOR=${V%.*}
+        MAJOR=${V%%.*}
+        LIST="${{ inputs['image-name'] }}:api-${V}\n${{ inputs['image-name'] }}:api-${MINOR}\n${{ inputs['image-name'] }}:api-${MAJOR}"
+        if [ "${{ inputs['include-stable'] }}" = "true" ] && [ "$MAJOR" = "${{ inputs['max-major'] }}" ]; then
+          LIST="$LIST\n${{ inputs['image-name'] }}:api-stable"
+        fi
+        printf 'list<<EOF\n%s\nEOF\n' "$LIST" >> "$GITHUB_OUTPUT"
+

@@ -1,0 +1,11 @@
+name: Release
+on:
+  push:
+    branches: [main]
+jobs:
+  release:
+    uses: <org>/actual-auto-ci/.github/workflows/release.yml@v1
+    with:
+      node-version: '20'
+      package-manager: npm
+

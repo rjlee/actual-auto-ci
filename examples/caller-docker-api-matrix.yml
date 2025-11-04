@@ -1,0 +1,19 @@
+name: Docker Build API Matrix
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+  schedule:
+    - cron: '0 6 * * 1'
+jobs:
+  docker:
+    uses: <org>/actual-auto-ci/.github/workflows/docker-api-matrix.yml@v1
+    with:
+      image-name: ghcr.io/${{ github.repository }}
+      platforms: linux/amd64,linux/arm64
+      majors-window: 2
+      include-stable: true
+      dockerfile: Dockerfile
+      context: .
+

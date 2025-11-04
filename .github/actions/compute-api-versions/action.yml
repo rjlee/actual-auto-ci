@@ -1,0 +1,37 @@
+name: Compute Actual API versions
+description: 'Determine latest patch for the last N stable @actual-app/api majors'
+inputs:
+  majors-window:
+    description: 'Number of latest majors to include'
+    required: true
+outputs:
+  matrix:
+    description: 'JSON array of versions (latest patch per major)'
+  max_major:
+    description: 'Highest major in the selection'
+runs:
+  using: composite
+  steps:
+    - name: Compute versions
+      id: v
+      shell: bash
+      run: |
+        set -euo pipefail
+        ALL=$(npm view @actual-app/api versions --json)
+        node -e '
+          const majorsWindow = parseInt(process.env.WINDOW, 10);
+          const all = JSON.parse(process.env.ALL || "[]");
+          const stable = all.filter(v => /^\d+\.\d+\.\d+$/.test(v));
+          const parsed = stable.map(v => ({ v, p: v.split(".").map(Number) }));
+          const majors = Array.from(new Set(parsed.map(x=>x.p[0]))).sort((a,b)=>b-a).slice(0, majorsWindow);
+          const byMajor = new Map();
+          const newer = (a,b)=> (a.p[0]-b.p[0]) || (a.p[1]-b.p[1]) || (a.p[2]-b.p[2]) > 0;
+          for (const x of parsed) { if (!majors.includes(x.p[0])) continue; const cur = byMajor.get(x.p[0]); if (!cur || newer(x,cur)) byMajor.set(x.p[0],x); }
+          const result = Array.from(byMajor.values()).sort((a,b)=> a.p[0]-b.p[0] || a.p[1]-b.p[1] || a.p[2]-b.p[2]).map(x=>x.v);
+          process.stdout.write(`matrix=${JSON.stringify(result)}\n`);
+          process.stdout.write(`max_major=${majors[0]||''}\n`);
+        ' > $GITHUB_OUTPUT
+      env:
+        WINDOW: ${{ inputs.majors-window }}
+        ALL: ${{ env.ALL }}
+

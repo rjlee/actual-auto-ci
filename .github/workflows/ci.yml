@@ -1,0 +1,107 @@
+name: Reusable CI
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '20'
+      package-manager:
+        description: 'Package manager (npm|pnpm|yarn)'
+        required: false
+        type: string
+        default: 'npm'
+      lint:
+        description: 'Run lint'
+        required: false
+        type: boolean
+        default: true
+      format-check:
+        description: 'Run Prettier format check'
+        required: false
+        type: boolean
+        default: true
+      test:
+        description: 'Run tests'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+        with:
+          node-version: ${{ inputs['node-version'] }}
+          package-manager: ${{ inputs['package-manager'] }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ inputs['package-manager'] }}" in
+            pnpm) corepack enable; pnpm install --frozen-lockfile || pnpm install ;;
+            yarn) corepack enable; yarn install --frozen-lockfile || yarn install ;;
+            *) npm ci || npm install ;;
+          esac
+
+      - name: Lint
+        if: inputs.lint == true
+        shell: bash
+        run: |
+          if [ -f package.json ] && jq -e '.scripts.lint' package.json >/dev/null 2>&1; then
+            case "${{ inputs['package-manager'] }}" in
+              pnpm) pnpm run lint ;;
+              yarn) yarn lint ;;
+              *) npm run lint ;;
+            esac
+          elif [ -x ./node_modules/.bin/eslint ]; then
+            ./node_modules/.bin/eslint .
+          else
+            echo "No lint script found; skipping"
+          fi
+
+      - name: Format Check
+        if: inputs.format-check == true
+        shell: bash
+        run: |
+          if [ -f package.json ] && jq -e '.scripts["format:check"]' package.json >/dev/null 2>&1; then
+            case "${{ inputs['package-manager'] }}" in
+              pnpm) pnpm run format:check ;;
+              yarn) yarn format:check ;;
+              *) npm run format:check ;;
+            esac
+          elif [ -x ./node_modules/.bin/prettier ]; then
+            ./node_modules/.bin/prettier -c .
+          else
+            echo "No format checker found; skipping"
+          fi
+
+      - name: Test
+        if: inputs.test == true
+        shell: bash
+        env:
+          CI: true
+        run: |
+          if [ -f package.json ] && jq -e '.scripts.test' package.json >/dev/null 2>&1; then
+            case "${{ inputs['package-manager'] }}" in
+              pnpm) pnpm test ;;
+              yarn) yarn test ;;
+              *) npm test ;;
+            esac
+          elif [ -x ./node_modules/.bin/jest ]; then
+            ./node_modules/.bin/jest --runInBand
+          else
+            echo "No tests found; skipping"
+          fi
+

@@ -1,0 +1,19 @@
+name: Setup Node.js with cache
+description: 'Setup Node.js and cache the selected package manager'
+inputs:
+  node-version:
+    description: 'Node.js version'
+    required: true
+  package-manager:
+    description: 'Package manager (npm|pnpm|yarn)'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.package-manager }}
+        registry-url: https://registry.npmjs.org
+
