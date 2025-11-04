@@ -29,8 +29,8 @@ runs:
         V='${{ inputs.ver }}'
         MINOR=${V%.*}
         MAJOR=${V%%.*}
-        LIST="${{ inputs['image-name'] }}:api-${V}\n${{ inputs['image-name'] }}:api-${MINOR}\n${{ inputs['image-name'] }}:api-${MAJOR}"
+        LIST="${{ inputs['image-name'] }}:api-${V},${{ inputs['image-name'] }}:api-${MINOR},${{ inputs['image-name'] }}:api-${MAJOR}"
         if [ "${{ inputs['include-stable'] }}" = "true" ] && [ "$MAJOR" = "${{ inputs['max-major'] }}" ]; then
-          LIST="$LIST\n${{ inputs['image-name'] }}:api-stable"
+          LIST="$LIST,${{ inputs['image-name'] }}:api-stable"
         fi
-        printf 'list<<EOF\n%s\nEOF\n' "$LIST" >> "$GITHUB_OUTPUT"
+        echo "list=$LIST" >> "$GITHUB_OUTPUT"
