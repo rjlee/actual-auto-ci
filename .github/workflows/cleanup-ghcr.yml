@@ -76,26 +76,21 @@ jobs:
               "${BASE}/versions?per_page=100&page=${page}" 2>/dev/null || echo '[]')
             count=$(jq 'length' <<<"$data")
             if [ "$count" -eq 0 ]; then break; fi
-            for row in $(jq -c '.[]' <<<"$data"); do
+            while read -r row; do
               id=$(jq -r '.id' <<<"$row")
-              # Collect tags (may be null)
-              tags=$(jq -r '.metadata.container.tags // [] | .[]' <<<"$row" || true)
-              keep=false
-              while IFS= read -r t; do
-                if [[ "$t" =~ ^api-[0-9]+$ || "$t" == "latest" ]]; then keep=true; fi
-              done <<<"$tags"
-              if $keep; then
+              # Determine keep vs delete using jq
+              if jq -e '.metadata.container.tags // [] | any(. == "latest" or test("^api-[0-9]+$"))' <<<"$row" >/dev/null; then
                 kept=$((kept+1))
-                continue
+              else
+                tags_csv=$(jq -r '.metadata.container.tags // [] | join(",")' <<<"$row")
+                echo "Candidate delete: version=$id tags=[$tags_csv]"
+                if [ "$DRY" != "true" ]; then
+                  gh api --method DELETE -H "Accept: application/vnd.github+json" \
+                    "${BASE}/versions/${id}" || true
+                  deleted=$((deleted+1))
+                fi
               fi
-              echo "Candidate delete: version=$id tags=["$(paste -sd, <<<"$tags")"]"
-              if [ "$DRY" != "true" ]; then
-                gh api --method DELETE -H "Accept: application/vnd.github+json" \
-                  "${BASE}/versions/${id}" || true
-                deleted=$((deleted+1))
-              fi
-            done
+            done < <(jq -c '.[]' <<<"$data")
             page=$((page+1))
           done
           echo "Summary: kept=$kept deleted=$deleted dry-run=$DRY"
-
