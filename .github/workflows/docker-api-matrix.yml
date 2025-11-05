@@ -49,7 +49,7 @@ jobs:
       - name: Setup Node
         uses: rjlee/actual-auto-ci/.github/actions/setup-node@v1
         with:
-          node-version: '20'
+          node-version: '22'
           package-manager: npm
 
       - name: Compute API versions (top 3 stable)
