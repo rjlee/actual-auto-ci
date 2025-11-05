@@ -12,16 +12,6 @@ on:
         required: false
         type: string
         default: 'linux/amd64,linux/arm64'
-      majors-window:
-        description: 'How many latest API majors to include'
-        required: false
-        type: number
-        default: 2
-      include-stable:
-        description: 'Whether to tag api-stable on the highest major'
-        required: false
-        type: boolean
-        default: true
       dockerfile:
         description: 'Dockerfile path'
         required: false
@@ -50,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.versions.outputs.matrix }}
-      max_major: ${{ steps.versions.outputs.max_major }}
+      max_version: ${{ steps.versions.outputs.max_version }}
       cache_hit: ${{ steps.cache.outputs.cache-hit }}
     steps:
       - name: Checkout
@@ -62,11 +52,9 @@ jobs:
           node-version: '20'
           package-manager: npm
 
-      - name: Compute API versions
+      - name: Compute API versions (top 3 stable)
         id: versions
         uses: rjlee/actual-auto-ci/.github/actions/compute-api-versions@v1
-        with:
-          majors-window: ${{ inputs['majors-window'] }}
 
       - name: Compute matrix cache key
         id: key
@@ -111,17 +99,13 @@ jobs:
         id: appver
         run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
 
-      - name: Compose tags
+      - name: Compose tags (semver + latest)
         id: taglist
         uses: rjlee/actual-auto-ci/.github/actions/docker-tags@v1
         with:
           image-name: ${{ inputs['image-name'] }}
           ver: ${{ matrix.ver }}
-          max-major: ${{ needs.matrix.outputs.max_major }}
-          include-major: true
-          include-minor: false
-          include-patch: false
-          include-stable: false
+          max-version: ${{ needs.matrix.outputs.max_version }}
           include-latest: true
 
       - name: Build and push (api matrix)

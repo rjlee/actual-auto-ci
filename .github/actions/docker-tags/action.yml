@@ -1,5 +1,5 @@
-name: Compose Docker tag list
-description: 'Compose tags for a given API version (patch/minor/major and optional api-stable)'
+name: Compose Docker tag list (semver + optional latest)
+description: 'Compose tags for a given API version (exact semver), optionally including latest'
 inputs:
   image-name:
     description: 'Base image name (e.g., ghcr.io/owner/repo)'
@@ -7,27 +7,11 @@ inputs:
   ver:
     description: 'API version (patch)'
     required: true
-  max-major:
-    description: 'Highest major across matrix builds'
+  max-version:
+    description: 'Highest version across the matrix (exact semver)'
     required: true
-  include-major:
-    description: 'Include api-<major> tag'
-    required: false
-    default: 'true'
-  include-minor:
-    description: 'Include api-<minor> tag'
-    required: false
-    default: 'false'
-  include-patch:
-    description: 'Include api-<patch> tag'
-    required: false
-    default: 'false'
-  include-stable:
-    description: 'Include api-stable for highest major'
-    required: false
-    default: 'false'
   include-latest:
-    description: 'Include latest for highest major'
+    description: 'Include latest alias when ver == max-version'
     required: false
     default: 'true'
 outputs:
@@ -43,22 +27,10 @@ runs:
       run: |
         set -euo pipefail
         V='${{ inputs.ver }}'
-        MINOR=${V%.*}
-        MAJOR=${V%%.*}
-        LIST=""
-        if [ "${{ inputs['include-patch'] }}" = "true" ]; then
-          LIST="${{ inputs['image-name'] }}:api-${V}"
+        LIST="${{ inputs['image-name'] }}:${V}"
+        if [ "${{ inputs['include-latest'] }}" = "true" ] && [ "$V" = "${{ inputs['max-version'] }}" ]; then
+          LIST="$LIST
+${{ inputs['image-name'] }}:latest"
         fi
-        if [ "${{ inputs['include-minor'] }}" = "true" ]; then
-          LIST="${LIST:+$LIST,}${{ inputs['image-name'] }}:api-${MINOR}"
-        fi
-        if [ "${{ inputs['include-major'] }}" = "true" ]; then
-          LIST="${LIST:+$LIST,}${{ inputs['image-name'] }}:api-${MAJOR}"
-        fi
-        if [ "${{ inputs['include-stable'] }}" = "true" ] && [ "$MAJOR" = "${{ inputs['max-major'] }}" ]; then
-          LIST="$LIST,${{ inputs['image-name'] }}:api-stable"
-        fi
-        if [ "${{ inputs['include-latest'] }}" = "true" ] && [ "$MAJOR" = "${{ inputs['max-major'] }}" ]; then
-          LIST="$LIST,${{ inputs['image-name'] }}:latest"
-        fi
-        echo "list=$LIST" >> "$GITHUB_OUTPUT"
+        # Output newline-delimited list
+        printf 'list=%s\n' "$LIST" >> "$GITHUB_OUTPUT"
