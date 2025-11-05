@@ -1,26 +1,26 @@
 name: Compose Docker tag list (semver + optional latest)
 description: 'Compose tags for a given API version (exact semver), optionally including latest'
 inputs:
-image-name:
+  image-name:
     description: 'Base image name (e.g., ghcr.io/owner/repo)'
     required: true
-ver:
+  ver:
     description: 'API version (patch)'
     required: true
-max-version:
+  max-version:
     description: 'Highest version across the matrix (exact semver)'
     required: true
-include-latest:
+  include-latest:
     description: 'Include latest alias when ver == max-version'
     required: false
     default: 'true'
 outputs:
-list:
+  list:
     description: 'Newline-delimited tag list'
     value: ${{ steps.t.outputs.list }}
 runs:
-using: composite
-steps:
+  using: composite
+  steps:
     - name: Build tags
       id: t
       shell: bash
