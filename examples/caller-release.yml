@@ -6,6 +6,5 @@ jobs:
   release:
     uses: <org>/actual-auto-ci/.github/workflows/release.yml@v1
     with:
-      node-version: '20'
+      node-version: '22'
       package-manager: npm
-

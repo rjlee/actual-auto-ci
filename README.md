@@ -6,12 +6,12 @@ Shared GitHub Actions for the `actual-*` projects. These workflows are reusable 
 
 - CI (`.github/workflows/ci.yml`): Lint, format-check, and tests.
 - Release (`.github/workflows/release.yml`): Runs semantic-release.
-- Docker API Matrix (`.github/workflows/docker-api-matrix.yml`): Builds and publishes API‑pinned Docker images for the latest patch in the last N API majors, tagging `api-<patch>`, `api-<minor>`, `api-<major>`, and `api-stable` (for the highest major).
+- Docker API Matrix (`.github/workflows/docker-api-matrix.yml`): Builds and publishes Docker images for the latest patch in the last N stable `@actual-app/api` majors, tagging each build with its exact semver plus `latest` (highest stable).
 
 ## Composite Actions
 
 - `compute-api-versions`: Determines the latest patch for the last N stable `@actual-app/api` majors.
-- `docker-tags`: Composes tag lists for a specific API version including minor/major aliases and optional `api-stable`.
+- `docker-tags`: Composes tag lists for a specific API version (exact semver) and optionally adds `latest`.
 - `setup-node`: Installs a specific Node version with caching for the selected package manager.
 
 ## Usage (caller repos)
@@ -64,11 +64,8 @@ jobs:
     with:
       image-name: ghcr.io/${{ github.repository }}
       platforms: linux/amd64,linux/arm64
-      majors-window: 2
-      include-stable: true
       dockerfile: Dockerfile
       context: .
 ```
 
 Pin callers to `@v1` and use Renovate/Dependabot to roll forward when ready.
-
