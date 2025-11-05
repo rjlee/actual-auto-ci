@@ -61,6 +61,16 @@ jobs:
           echo "Failed to resolve package path for ${OWNER}/${PACKAGE}" >&2
           exit 1
 
+      - name: Compute keep tags (top 3 stable + latest)
+        id: keeptags
+        shell: bash
+        run: |
+          set -euo pipefail
+          ALL=$(npm view @actual-app/api versions --json)
+          VERS=$(echo "$ALL" | jq -r '[ .[] | select(type=="string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$")) ] | sort_by( split(".")|map(tonumber) ) | .[-3:] | .[]')
+          { echo latest; echo "$VERS"; } | paste -sd '\n' - > keep.txt
+          echo "Keep tags:" && sed 's/^/ - /' keep.txt
+
       - name: Delete non-conforming versions
         shell: bash
         env:
@@ -68,6 +78,7 @@ jobs:
           DRY: ${{ inputs.dry-run }}
         run: |
           set -euo pipefail
+          mapfile -t KEEP < keep.txt
           page=1
           deleted=0
           kept=0
@@ -79,8 +90,15 @@ jobs:
             if [ "$count" -eq 0 ]; then break; fi
             while read -r row; do
               id=$(jq -r '.id' <<<"$row")
-              # Determine keep vs delete using jq
-              if jq -e '.metadata.container.tags // [] | any(. == "latest" or test("^api-[0-9]+$"))' <<<"$row" >/dev/null; then
+              tags=$(jq -r '.metadata.container.tags // [] | .[]' <<<"$row" || true)
+              keep=false
+              if [ -n "$tags" ]; then
+                while read -r t; do
+                  for k in "${KEEP[@]}"; do if [ "$t" = "$k" ]; then keep=true; break; fi; done
+                  $keep && break
+                done <<< "$tags"
+              fi
+              if $keep; then
                 kept=$((kept+1))
                 # Accumulate all tags from kept versions so we can show remaining tag set
                 jq -r '.metadata.container.tags // [] | .[]' <<<"$row" >> "$kept_tags_file" || true

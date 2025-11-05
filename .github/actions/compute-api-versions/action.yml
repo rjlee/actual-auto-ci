@@ -1,16 +1,13 @@
-name: Compute Actual API versions
-description: 'Determine latest patch for the last N stable @actual-app/api majors'
-inputs:
-  majors-window:
-    description: 'Number of latest majors to include'
-    required: true
+name: Compute Actual API versions (top 3 stable)
+description: 'Determine the latest three stable @actual-app/api versions (exact semver)'
+inputs: {}
 outputs:
   matrix:
-    description: 'JSON array of versions (latest patch per major)'
+    description: 'JSON array of three versions (exact semver)'
     value: ${{ steps.v.outputs.matrix }}
-  max_major:
-    description: 'Highest major in the selection'
-    value: ${{ steps.v.outputs.max_major }}
+  max_version:
+    description: 'Highest semver in the selection'
+    value: ${{ steps.v.outputs.max_version }}
 runs:
   using: composite
   steps:
@@ -20,18 +17,13 @@ runs:
       run: |
         set -euo pipefail
         ALL=$(npm view @actual-app/api versions --json)
-        JSON=$(echo "$ALL" | jq -c --argjson n "${{ inputs.majors-window }}" '
-          # Build parsed list with numeric parts and major
+        JSON=$(echo "$ALL" | jq -c '
+          # Parse all stable semvers and sort ascending
           [ .[]
-            | select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
-            | { v: ., p: (split(".")|map(tonumber)), major: ((split(".")|.[0]|tonumber)) } ] as $parsed
-          # Determine latest N majors (by value, descending)
-          | ($parsed | map(.major) | unique | sort | reverse | .[:$n]) as $majors
-          # Keep only entries from selected majors
-          | ($parsed | map(select(.major as $m | $majors | index($m)))) as $sel
-          # For each major, pick the latest patch (by p), then sort ascending by p and emit versions
-          | { matrix: ($sel | sort_by(.major, .p) | group_by(.major) | map(.[-1]) | sort_by(.p) | map(.v)),
-              max_major: ($majors[0] // "") }
+            | select(type=="string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+            | { v: ., p: (split(".")|map(tonumber)) } ]
+          | sort_by(.p)
+          | { list: (.[-3:] // [] | map(.v)), max_version: (.[-1].v // "") }
         ')
-        echo "matrix=$(echo "$JSON" | jq -c .matrix)" >> $GITHUB_OUTPUT
-        echo "max_major=$(echo "$JSON" | jq -r .max_major)" >> $GITHUB_OUTPUT
+        echo "matrix=$(echo "$JSON" | jq -c .list)" >> $GITHUB_OUTPUT
+        echo "max_version=$(echo "$JSON" | jq -r .max_version)" >> $GITHUB_OUTPUT
