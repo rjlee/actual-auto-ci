@@ -44,7 +44,7 @@ jobs:
       cache_hit: ${{ steps.cache.outputs.cache-hit }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
         uses: rjlee/actual-auto-ci/.github/actions/setup-node@v1
@@ -83,7 +83,7 @@ jobs:
         ver: ${{ fromJson(needs.matrix.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v3
