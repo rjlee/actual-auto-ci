@@ -67,7 +67,7 @@ jobs:
 
       - name: Check matrix cache (used to skip cron builds)
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .api-matrix-cache
           key: api-matrix-${{ steps.key.outputs.hash }}
